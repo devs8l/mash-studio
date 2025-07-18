@@ -1,15 +1,26 @@
-import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import CreatePostSingle from './CreatePostSingle';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 
 const CreatePostCollection = () => {
   const navigate = useNavigate();
+  const { userId } = useParams();
   const [collectionName, setCollectionName] = useState('');
+  const [collectionType, setCollectionType] = useState('None');
   const [thumbnailImage, setThumbnailImage] = useState(null);
-  const [assets, setAssets] = useState(Array(5).fill(null));
-  const [editingAssetIndex, setEditingAssetIndex] = useState(null);
+  const [assets, setAssets] = useState([]);
   const thumbnailInputRef = useRef(null);
-  const assetInputRefs = useRef([]);
+
+  // Load saved assets from localStorage
+  useEffect(() => {
+    const savedAssets = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key.startsWith('asset_')) {
+        savedAssets.push(JSON.parse(localStorage.getItem(key)));
+      }
+    }
+    setAssets(savedAssets);
+  }, []);
 
   const handleThumbnailUpload = (event) => {
     const file = event.target.files[0];
@@ -22,42 +33,8 @@ const CreatePostCollection = () => {
     }
   };
 
-  const handleAssetUpload = (event, index) => {
-    const file = event.target.files[0];
-    if (file && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const newAssets = [...assets];
-        newAssets[index] = e.target.result;
-        setAssets(newAssets);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleAssetEdit = (index) => {
-    setEditingAssetIndex(index);
-  };
-
-  const handleSingleAssetSubmit = (assetData) => {
-    if (editingAssetIndex !== null) {
-      const newAssets = [...assets];
-      newAssets[editingAssetIndex] = assetData;
-      setAssets(newAssets);
-    }
-    setEditingAssetIndex(null);
-  };
-
-  const handleAddMoreAssets = () => {
-    setAssets([...assets, null]);
-  };
-
   const handleThumbnailClick = () => {
     thumbnailInputRef.current?.click();
-  };
-
-  const handleNewAssetClick = (index) => {
-    assetInputRefs.current[index]?.click();
   };
 
   const handleDragOver = (e) => {
@@ -65,69 +42,99 @@ const CreatePostCollection = () => {
     e.stopPropagation();
   };
 
-  const handleDrop = (e, type, index = null) => {
+  const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
     const file = e.dataTransfer.files[0];
     if (file && file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = (event) => {
-        if (type === 'thumbnail') {
-          setThumbnailImage(event.target.result);
-        } else if (type === 'asset' && index !== null) {
-          const newAssets = [...assets];
-          newAssets[index] = event.target.result;
-          setAssets(newAssets);
-        }
+        setThumbnailImage(event.target.result);
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleAddNewAsset = () => {
+    const newAssetId = `asset_${Date.now()}`;
+    navigate(`/${userId}/collection/${newAssetId}`);
+  };
+
+  const handleAssetClick = (asset) => {
+    navigate(`/${userId}/collection/${asset.id}`);
+  };
+
+  const handleRemoveAsset = (assetId, e) => {
+    e.stopPropagation();
+    const updatedAssets = assets.filter(asset => asset.id !== assetId);
+    setAssets(updatedAssets);
+    localStorage.removeItem(`asset_${assetId}`);
+  };
+
+  const handleCancel = () => {
+    setCollectionName('');
+    setCollectionType('None');
+    setThumbnailImage(null);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     console.log({
       collectionName,
+      collectionType,
       thumbnailImage,
       assets
     });
+    navigate(`/${userId}`);
   };
 
-  if (editingAssetIndex !== null) {
-    return (
-      <CreatePostSingle 
-        setShowCreatePost={() => setEditingAssetIndex(null)}
-        onSubmit={handleSingleAssetSubmit}
-        initialData={assets[editingAssetIndex]}
-      />
-    );
-  }
-
   return (
-    <div className=" w-full  p-12 text-text-primary">
-      <button
-        className="absolute top-6 right-6 bg-transparent border-none text-white text-2xl cursor-pointer z-[100]"
-        onClick={() => navigate('/')}
-      >
-        ×
-      </button>
-
-      <div className="grid grid-cols-2 gap-16 max-w-[1200px] mx-auto">
-        <div className="flex flex-col">
-          <h1 className="text-white mb-8 font-raleway text-2xl font-semibold">Create Post</h1>
+    <div className="relative h-[calc(100vh-4rem)] flex flex-col text-white ">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col lg:flex-row gap-6 overflow-hidden">
+        {/* Left Column - Thumbnail and Collection Info */}
+        <div className="lg:w-1/3 flex flex-col bg-[#121214] overflow-auto scrollbar-hidden">
+          <div className="px-6 pt-6">
+            <h1 className="text-white mb-6 text-2xl font-semibold">Create Collection</h1>
+          </div>
           
-          {/* Thumbnail Upload Section */}
-          <div className="mb-8">
-            <label htmlFor="thumbnail-upload" className="block text-base font-normal mb-4 text-text-primary">
-              Upload Thumbnail
-            </label>
+          {/* Collection Name */}
+          <div className="px-6 mb-8">
+            <label className="block text-base font-normal mb-2 text-white">Collection Name</label>
+            <input
+              type="text"
+              className="w-full py-3 px-0 bg-transparent border-b border-[#626262] text-white text-sm placeholder-[#626262] focus:outline-none focus:border-white"
+              placeholder="Type here"
+              value={collectionName}
+              onChange={(e) => setCollectionName(e.target.value)}
+              required
+            />
+          </div>
+          
+          {/* Collection Type */}
+          <div className="px-6 mb-8">
+            <label className="block text-base font-normal mb-2 text-white">Collection Type</label>
+            <select
+              className="w-full py-3 px-0 bg-transparent border-b border-[#626262] text-white text-sm cursor-pointer focus:outline-none focus:border-white appearance-none"
+              value={collectionType}
+              onChange={(e) => setCollectionType(e.target.value)}
+            >
+              <option value="None">None</option>
+              <option value="audio">Audio</option>
+              <option value="video">Video</option>
+              <option value="image">Image</option>
+            </select>
+          </div>
+          
+          {/* Thumbnail Upload */}
+          <div className="px-6 mb-8">
+            <label className="block text-base font-normal mb-2 text-white">Thumbnail</label>
             <div
-              className="flex flex-col items-center justify-center border border-dashed border-border-color cursor-pointer transition-all-custom relative overflow-hidden bg-input-bg rounded-lg w-full max-w-[300px] h-[300px] hover:border-white hover:border-opacity-40 hover:bg-white hover:bg-opacity-8"
+              className="flex flex-col items-center justify-center border border-[#626262] cursor-pointer transition-all duration-300 relative overflow-hidden bg-[#FFFFFF0A] hover:border-gray-400"
               onClick={handleThumbnailClick}
               onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, 'thumbnail')}
-              role="button"
-              tabIndex="0"
+              onDrop={handleDrop}
+              style={{ minHeight: '200px' }}
             >
               {thumbnailImage ? (
                 <img 
@@ -137,12 +144,13 @@ const CreatePostCollection = () => {
                 />
               ) : (
                 <>
-                  <div className="text-3xl text-white text-opacity-60 mb-2">+</div>
-                  <span className="text-text-secondary text-sm text-center">Upload Image Here</span>
+                  <div className="text-4xl text-[#626262] mb-2 font-light">+</div>
+                  <span className="text-[#626262] text-sm text-center">
+                    Click + or Drag your File Here
+                  </span>
                 </>
               )}
               <input
-                id="thumbnail-upload"
                 ref={thumbnailInputRef}
                 type="file"
                 accept="image/*"
@@ -151,92 +159,77 @@ const CreatePostCollection = () => {
               />
             </div>
           </div>
-
-          {/* Collection Name Input */}
-          <div className="mb-8">
-            <label htmlFor="collection-name" className="block text-base font-normal mb-3 text-text-primary">
-              Collection Name
-            </label>
-            <input
-              id="collection-name"
-              type="text"
-              className="w-full py-3 px-4 bg-input-bg border border-border-color text-text-primary text-sm rounded transition-all-custom placeholder-text-secondary focus:outline-none focus:border-white focus:border-opacity-40"
-              placeholder="Enter your collection's name"
-              value={collectionName}
-              onChange={(e) => setCollectionName(e.target.value)}
-              required
-            />
-          </div>
         </div>
 
-        <div className="flex flex-col pl-16 border-l border-white border-opacity-10">
-          {/* Assets Upload Section */}
-          <div className="mb-8">
-            <label className="block text-base font-normal mb-4 text-text-primary">Upload Assets</label>
-            <div className="max-h-[60vh] overflow-y-auto pr-4 mb-4 scrollbar-thin scrollbar-track-white scrollbar-track-opacity-5 scrollbar-thumb-white scrollbar-thumb-opacity-20">
-              <div className="grid grid-cols-1 gap-4 w-full">
-                {assets.map((asset, index) => (
-                  <React.Fragment key={`asset-${index}`}>
+        {/* Right Column - Assets */}
+        <div className="lg:w-[60%] flex flex-col overflow-hidden pt-6">
+          <div className="flex-1 overflow-y-auto pr-2" style={{ maxHeight: 'calc(100vh - 100px)' }}>
+            <div className="space-y-10 pb-4">
+              {/* Add to Collection Section */}
+              <div>
+                <label className="block text-base font-normal mb-4 text-white">Assets in Collection</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {/* Existing assets */}
+                  {assets.map((asset) => (
                     <div
-                      className={`flex flex-col items-center justify-center border border-dashed border-border-color cursor-pointer transition-all-custom relative overflow-hidden rounded-lg w-full h-[120px] ${asset ? 'border-solid' : ''} hover:border-white hover:border-opacity-40`}
-                      onClick={() => asset ? handleAssetEdit(index) : handleNewAssetClick(index)}
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDrop(e, 'asset', index)}
-                      role="button"
-                      tabIndex="0"
+                      key={asset.id}
+                      className="relative aspect-square border border-solid border-[#626262] cursor-pointer transition-all duration-300 overflow-hidden bg-[#FFFFFF0A] hover:border-gray-400 group"
+                      onClick={() => handleAssetClick(asset)}
                     >
-                      {asset ? (
-                        <>
-                          <img 
-                            src={asset} 
-                            alt={`Asset ${index + 1}`} 
-                            className="w-full h-full object-cover" 
-                          />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70 opacity-0 hover:opacity-100 transition-opacity duration-300 text-white">
-                            Edit
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="text-3xl text-white text-opacity-60 mb-2">+</div>
-                          <span className="text-text-secondary text-sm text-center">Add Asset</span>
-                        </>
-                      )}
+                      {/* Remove button */}
+                      <button
+                        onClick={(e) => handleRemoveAsset(asset.id, e)}
+                        className="absolute top-2 right-2 z-10 w-6 h-6 flex items-center justify-center bg-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                        aria-label="Remove asset"
+                      >
+                        ×
+                      </button>
+                      
+                      {/* Asset image */}
+                      <img 
+                        src={asset.image} 
+                        alt={asset.fileName || `Asset`} 
+                        className="w-full h-full object-cover" 
+                      />
+                      
+                      
                     </div>
-                    <input
-                      ref={(el) => (assetInputRefs.current[index] = el)}
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleAssetUpload(e, index)}
-                      className="hidden"
-                    />
-                  </React.Fragment>
-                ))}
-              </div>
-              {assets.length >= 5 && assets.every(asset => asset) && (
-                <div 
-                  className="flex flex-col items-center justify-center border border-dashed border-border-color cursor-pointer transition-all-custom relative overflow-hidden rounded-lg w-full h-[120px] mt-4 hover:border-white hover:border-opacity-40"
-                  onClick={handleAddMoreAssets}
-                  role="button"
-                  tabIndex="0"
-                >
-                  <div className="text-3xl text-white text-opacity-60 mb-2">+</div>
-                  <span className="text-text-secondary text-sm text-center">Add More Assets</span>
+                  ))}
+                  
+                  {/* Add new asset button */}
+                  <div 
+                    className="aspect-square flex flex-col items-center justify-center border-2 border-dashed border-[#FFFFFF33] cursor-pointer transition-all duration-300 overflow-hidden bg-[#FFFFFF0A] hover:border-gray-400"
+                    onClick={handleAddNewAsset}
+                  >
+                    <div className="text-center">
+                      <div className="text-4xl text-[#626262] mb-2 font-light">+</div>
+                      <span className="text-[#626262] text-sm">Add Asset</span>
+                    </div>
+                  </div>
                 </div>
-              )}
+                
+              </div>
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* Submit Button */}
-          <div className="mt-auto pt-8">
-            <button 
-              className="flex items-center justify-center w-full py-4 bg-button-bg border-none text-black text-base font-medium cursor-pointer rounded transition-all-custom hover:bg-white hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={handleSubmit}
-              disabled={!collectionName || !thumbnailImage || assets.filter(asset => asset).length < 5}
-            >
-              SEND FOR APPROVAL
-            </button>
-          </div>
+      {/* Fixed Bottom Buttons */}
+      <div className="sticky bottom-0 left-0 right-0 flex justify-end border-t border-[#626262] py-2 px-6 z-10 bg-[#0a0a0a]">
+        <div className="flex gap-4 w-[40%] justify-end items-end">
+          <button
+            onClick={handleCancel}
+            className="flex-1 py-3 px-4 bg-transparent border border-[#626262] text-white text-sm font-medium cursor-pointer hover:bg-[#1e1e1e]"
+          >
+            CANCEL
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="flex-1 py-3 px-4 bg-white border border-white text-black text-sm font-medium cursor-pointer hover:bg-gray-200"
+            disabled={!collectionName || !thumbnailImage || assets.length === 0}
+          >
+            SEND FOR APPROVAL
+          </button>
         </div>
       </div>
     </div>

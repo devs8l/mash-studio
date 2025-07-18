@@ -5,14 +5,14 @@ import { useUser } from '../context/UserContext';
 
 const CreatePostStart = () => {
   const navigate = useNavigate();
-  const { user } = useUser();
+  const { user,userData } = useUser();
 
   return (
     <div className="w-full h-full   flex items-center justify-center p-4 sm:p-8 md:p-20 ">
       <div className="text-center w-full max-w-[800px]">
         {/* Title */}
         <h1 className="text-white mb-8 md:mb-16 font-raleway text-2xl sm:text-[28px] font-semibold leading-normal">
-          Create Post
+          Hey {userData?.name?.split(' ')[0]} ! Create Your Assets Here
         </h1>
 
         {/* Options Grid */}

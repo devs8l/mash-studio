@@ -7,13 +7,13 @@ const Sidebar = () => {
   const { user } = useUser();
   return (
     <div className="fixed left-0 top-0 h-screen bg-black/20 backdrop-blur-[40px] border-r border-[#626262] z-50 pt-16 hover:w-64 w-20 transition-all duration-300 ease-in-out group">
-      <div className="flex flex-col p-4 space-y-4 overflow-hidden">
+      <div className="flex flex-col p-4 pt-6 space-y-4 overflow-hidden">
         {/* Create Post */}
         <NavLink
           to={`/${user}`}
           end
           className={({ isActive }) =>
-            `relative flex items-center p-3 rounded-lg transition-colors ${isActive ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'}`
+            `relative flex items-center p-3  transition-colors ${isActive ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'}`
           }
         >
           <div className="w-6 h-6 flex items-center justify-center absolute left-3">
@@ -30,7 +30,7 @@ const Sidebar = () => {
         <NavLink
           to={`/${user}/files`}
           className={({ isActive }) =>
-            `relative flex items-center p-3 rounded-lg transition-colors ${isActive ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'}`
+            `relative flex items-center p-3  transition-colors ${isActive ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'}`
           }
         >
           <div className="w-6 h-6 flex items-center justify-center absolute left-3">
