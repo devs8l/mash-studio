@@ -27,13 +27,12 @@ const WorksGrid = ({ works }) => {
                   <p className="text-sm text-gray-400">{work.price} ETH {work.scarcity && `• ${work.scarcity} editions`}</p>
                 )}
               </div>
-              <button className="w-8 h-8 bg-blue-500 hover:bg-blue-600 rounded-full flex items-center justify-center transition-colors">
-                <Edit className="w-4 h-4" />
-              </button>
+              
             </div>
           </div>
         </div>
       ))}
+      
     </div>
   );
 };

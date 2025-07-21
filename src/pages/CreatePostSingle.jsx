@@ -1,20 +1,42 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useContext, useEffect } from 'react';
+import { uploadFile } from '../services/data';
+import { useUser } from '../context/UserContext';
 
 const CreatePostSingle = () => {
+  const { userData } = useUser();
   const [formData, setFormData] = useState({
-    fileName: '',
-    collection: 'None',
-    listPriceUSD: '',
-    listPriceETH: '',
-    royaltyFee: '',
-    scarcity: '',
-    notes: ''
+    artist_id: "",
+    artist_name: "",
+    type: "",
+    title: "",
+    file_name: "",
+    song_url: "",
+    price: "",
+    scarcity: "",
+    utility: "",
+    tags: [],
+    geo: "India",
+    image_url: "",
+    video_url: null
   });
 
+  const [activeUploadTab, setActiveUploadTab] = useState('image');
+  const [isUploading, setIsUploading] = useState(false);
   const [tags, setTags] = useState([]);
   const [tagInput, setTagInput] = useState('');
-  const [nftImage, setNftImage] = useState(null);
-  const nftInputRef = useRef(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const fileInputRef = useRef(null);
+
+  // Set user data when user context changes
+  useEffect(() => {
+    if (userData) {
+      setFormData(prev => ({
+        ...prev,
+        artist_id: userData.id || "",
+        artist_name: userData.name || ""
+      }));
+    }
+  }, [userData]);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -23,19 +45,46 @@ const CreatePostSingle = () => {
     }));
   };
 
-  const handleNftUpload = (event) => {
+  const handleFileUpload = async (event) => {
     const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setNftImage(e.target.result);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    setIsUploading(true);
+
+    try {
+      const fileUrl = await uploadFile(file);
+      console.log('File uploaded successfully:', fileUrl);
+
+
+      // Set preview and update form data based on active tab
+      if (activeUploadTab === 'image') {
+        setPreviewUrl(fileUrl);
+        handleInputChange('image_url', fileUrl);
+        handleInputChange('video_url', null);
+        handleInputChange('song_url', "");
+      } else if (activeUploadTab === 'video') {
+        setPreviewUrl(fileUrl);
+        handleInputChange('video_url', fileUrl);
+        handleInputChange('image_url', '');
+        handleInputChange('song_url', "");
+      } else if (activeUploadTab === 'audio') {
+        setPreviewUrl(null);
+        handleInputChange('song_url', fileUrl);
+        handleInputChange('image_url', '');
+        handleInputChange('video_url', null);
+      }
+
+      handleInputChange('file_name', file.name);
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      alert('File upload failed. Please try again.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
-  const handleNftClick = () => {
-    nftInputRef.current?.click();
+  const handleFileClick = () => {
+    fileInputRef.current?.click();
   };
 
   const handleDragOver = (e) => {
@@ -44,13 +93,9 @@ const CreatePostSingle = () => {
 
   const handleDrop = (e) => {
     e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setNftImage(event.target.result);
-      };
-      reader.readAsDataURL(file);
+    if (e.dataTransfer.files.length) {
+      fileInputRef.current.files = e.dataTransfer.files;
+      handleFileUpload({ target: { files: e.dataTransfer.files } });
     }
   };
 
@@ -62,58 +107,150 @@ const CreatePostSingle = () => {
     if (e.key === 'Enter' && tagInput.trim()) {
       e.preventDefault();
       if (!tags.includes(tagInput.trim())) {
-        setTags([...tags, tagInput.trim()]);
+        const newTags = [...tags, tagInput.trim()];
+        setTags(newTags);
+        handleInputChange('tags', newTags);
       }
       setTagInput('');
     }
   };
 
   const removeTag = (tagToRemove) => {
-    setTags(tags.filter(tag => tag !== tagToRemove));
+    const newTags = tags.filter(tag => tag !== tagToRemove);
+    setTags(newTags);
+    handleInputChange('tags', newTags);
   };
 
   const handleCancel = () => {
     setFormData({
-      fileName: '',
-      collection: 'None',
-      listPriceUSD: '',
-      listPriceETH: '',
-      royaltyFee: '',
-      scarcity: '',
-      notes: ''
+      artist_id: userData?.id || "",
+      artist_name: userData?.name || "",
+      type: "",
+      title: "",
+      file_name: "",
+      song_url: "",
+      price: "",
+      scarcity: "",
+      utility: "",
+      tags: [],
+      geo: "India",
+      image_url: "",
+      video_url: null
     });
     setTags([]);
-    setNftImage(null);
+    setPreviewUrl(null);
+    setActiveUploadTab('image');
   };
 
-  const handleSubmit = () => {
-    console.log('Form Data:', formData);
-    console.log('Tags:', tags);
-    console.log('NFT Image:', nftImage);
-    alert('Form submitted successfully!');
+  const handleSubmit = async () => {
+    // Validate required fields
+    if (!formData.title) {
+      alert('Title is required');
+      return;
+    }
+
+    if (!formData.type) {
+      alert('Type is required');
+      return;
+    }
+
+    if (!formData.image_url && !formData.video_url && !formData.song_url) {
+      alert('Please upload a file');
+      return;
+    }
+
+    try {
+      const response = await fetch(`https://api.mashlabs.xyz/artists/${formData.artist_id}/solo-works`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create post');
+      }
+
+      const data = await response.json();
+      console.log('Post created successfully:', data);
+      alert('Post created successfully!');
+      handleCancel();
+    } catch (error) {
+      console.error('Error creating post:', error);
+      alert('Failed to create post. Please try again.');
+    }
+  };
+
+  const getAcceptType = () => {
+    switch (activeUploadTab) {
+      case 'image':
+        return 'image/*';
+      case 'video':
+        return 'video/*';
+      case 'audio':
+        return 'audio/*';
+      default:
+        return '*';
+    }
   };
 
   return (
-    <div className="relative h-[calc(100vh-4rem)] flex flex-col  text-white">
-      {/* Header */}
-
-
+    <div className="relative h-[calc(100vh-4rem)] flex flex-col text-white">
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col lg:flex-row gap-6 overflow-hidden">
-        {/* Left Column - File Upload (fixed height) */}
-        <div className="lg:w-1/3 flex flex-col bg-[#121214]">
-          <div className="px-6 pt-6">
-            <h1 className="text-white mb-6 text-2xl font-semibold">Create Post</h1>
+        {/* Left Column - File Upload */}
+        <div className="lg:w-1/3 flex flex-col bg-[#121214] p-6">
+          <h1 className="text-white mb-6 text-2xl font-semibold">Create Post</h1>
+
+          {/* Upload Type Tabs */}
+          <div className="flex border-b border-[#626262] mb-6">
+            <button
+              className={`py-2 px-4 ${activeUploadTab === 'image' ? 'text-white border-b-2 border-white' : 'text-[#626262]'}`}
+              onClick={() => setActiveUploadTab('image')}
+            >
+              Image
+            </button>
+            <button
+              className={`py-2 px-4 ${activeUploadTab === 'video' ? 'text-white border-b-2 border-white' : 'text-[#626262]'}`}
+              onClick={() => setActiveUploadTab('video')}
+            >
+              Video
+            </button>
+            <button
+              className={`py-2 px-4 ${activeUploadTab === 'audio' ? 'text-white border-b-2 border-white' : 'text-[#626262]'}`}
+              onClick={() => setActiveUploadTab('audio')}
+            >
+              Audio
+            </button>
           </div>
+
+          {/* Upload Area */}
           <div
-            className="flex-1 mx-10 flex flex-col items-center justify-center border border-[#626262] cursor-pointer transition-all duration-300 relative overflow-hidden bg-[#FFFFFF0A] hover:border-gray-400"
-            onClick={handleNftClick}
+            className="flex-1 flex flex-col items-center justify-center border border-[#626262] cursor-pointer transition-all duration-300 relative overflow-hidden bg-[#FFFFFF0A] hover:border-gray-400 mb-6"
+            onClick={handleFileClick}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             style={{ minHeight: '300px', maxHeight: '400px' }}
           >
-            {nftImage ? (
-              <img src={nftImage} alt="NFT" className="w-full h-full object-contain" />
+            {isUploading ? (
+              <div className="text-white">Uploading...</div>
+            ) : previewUrl ? (
+              activeUploadTab === 'image' ? (
+                <img src={previewUrl} alt="Preview" className="w-full h-full object-contain" />
+              ) : activeUploadTab === 'video' ? (
+                <video controls className="w-full h-full object-contain">
+                  <source src={previewUrl} type="video/mp4" />
+                </video>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-6 w-full">
+                  <div className="text-4xl mb-4">🎵</div>
+                  <div className="text-lg">Audio File Uploaded</div>
+                  <div className="text-sm text-[#626262] mt-2 truncate w-full text-center">
+                    {formData.file_name}
+                  </div>
+                </div>
+              )
             ) : (
               <>
                 <div className="text-4xl text-[#626262] mb-2 font-light">+</div>
@@ -121,16 +258,18 @@ const CreatePostSingle = () => {
                   Click + or Drag your File Here
                 </span>
                 <div className="text-xs text-[#626262] mt-1">
-                  1000 x 1000 • JPG, PNG, SVG, GIF, MP4
+                  {activeUploadTab === 'image' && 'JPG, PNG, SVG, GIF'}
+                  {activeUploadTab === 'video' && 'MP4, MOV, AVI'}
+                  {activeUploadTab === 'audio' && 'MP3, WAV, AAC'}
                 </div>
               </>
             )}
           </div>
           <input
-            ref={nftInputRef}
+            ref={fileInputRef}
             type="file"
-            accept="image/*,video/*"
-            onChange={handleNftUpload}
+            accept={getAcceptType()}
+            onChange={handleFileUpload}
             className="hidden"
           />
         </div>
@@ -139,38 +278,45 @@ const CreatePostSingle = () => {
         <div className="lg:w-[60%] flex flex-col overflow-hidden pt-6">
           <div className="flex-1 overflow-y-auto pr-2" style={{ maxHeight: 'calc(100vh - 100px)' }}>
             <div className="space-y-10 pb-4">
-              {/* File Name */}
+              {/* Title */}
               <div>
-                <label className="block text-base font-normal mb-2 text-white">File Name</label>
+                <label className="block text-base font-normal mb-2 text-white">Title*</label>
                 <input
                   type="text"
-                  className="w-[30%] py-3 px-0 bg-transparent border-b border-[#626262] text-white text-sm placeholder-[#626262] focus:outline-none focus:border-white"
-                  placeholder="Type here"
-                  value={formData.fileName}
-                  onChange={(e) => handleInputChange('fileName', e.target.value)}
+                  className="w-[60%] py-3 px-0 bg-transparent border-b border-[#626262] text-white text-sm placeholder-[#626262] focus:outline-none focus:border-white"
+                  placeholder="Enter title"
+                  value={formData.title}
+                  onChange={(e) => handleInputChange('title', e.target.value)}
                 />
-                <div className="text-xs text-[#626262] mt-1">Your files name can't be updated later</div>
               </div>
 
-              {/* Collection */}
+              {/* Type */}
               <div>
-                <label className="block text-base font-normal mb-2 text-white">Collection</label>
-                <select
-                  className="w-[30%] py-3 px-0 bg-transparent border-b border-[#626262] text-white text-sm cursor-pointer focus:outline-none focus:border-white appearance-none"
-                  value={formData.collection}
-                  onChange={(e) => handleInputChange('collection', e.target.value)}
-                >
-                  <option value="None">None</option>
-                  <option value="Collection 1">Collection 1</option>
-                  <option value="Collection 2">Collection 2</option>
-                </select>
-                <div className="text-xs text-[#626262] mt-1">Select if you want to add this file in a collection</div>
+                <label className="block text-base font-normal mb-2 text-white">Type*</label>
+                <input
+                  type="text"
+                  className="w-[60%] py-3 px-0 bg-transparent border-b border-[#626262] text-white text-sm placeholder-[#626262] focus:outline-none focus:border-white"
+                  placeholder="Enter type (e.g., Painting, Music, Video)"
+                  value={formData.type}
+                  onChange={(e) => handleInputChange('type', e.target.value)}
+                />
+              </div>
+
+              {/* Geo */}
+              <div>
+                <label className="block text-base font-normal mb-2 text-white">Location</label>
+                <input
+                  type="text"
+                  className="w-[60%] py-3 px-0 bg-transparent border-b border-[#626262] text-white text-sm placeholder-[#626262] focus:outline-none focus:border-white"
+                  placeholder="Country"
+                  value={formData.geo}
+                  onChange={(e) => handleInputChange('geo', e.target.value)}
+                />
               </div>
 
               {/* Tags */}
               <div>
                 <label className="block text-base font-normal mb-2 text-white">Tags</label>
-
                 {tags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mb-2">
                     {tags.map((tag, index) => (
@@ -189,68 +335,50 @@ const CreatePostSingle = () => {
                     ))}
                   </div>
                 )}
-
                 <input
                   type="text"
-                  className="w-[30%] py-3 px-0 bg-transparent border-b border-[#626262] text-white text-sm placeholder-[#626262] focus:outline-none focus:border-white"
-                  placeholder="Add tags"
+                  className="w-[60%] py-3 px-0 bg-transparent border-b border-[#626262] text-white text-sm placeholder-[#626262] focus:outline-none focus:border-white"
+                  placeholder="Add tags (press Enter to add)"
                   value={tagInput}
                   onChange={handleTagInputChange}
                   onKeyDown={handleTagInputKeyDown}
                 />
-                <div className="text-xs text-[#626262] mt-1">Select tags that best describe your file</div>
               </div>
 
-              {/* List Price Row */}
+              {/* Price and Scarcity Row */}
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-base font-normal mb-2 text-white">List Price</label>
+                  <label className="block text-base font-normal mb-2 text-white">Price</label>
                   <input
                     type="text"
                     className="w-[60%] py-3 px-0 bg-transparent border-b border-[#626262] text-white text-sm placeholder-[#626262] focus:outline-none focus:border-white"
-                    placeholder="Add price"
-                    value={formData.listPriceUSD}
-                    onChange={(e) => handleInputChange('listPriceUSD', e.target.value)}
+                    placeholder="Enter price"
+                    value={formData.price}
+                    onChange={(e) => handleInputChange('price', e.target.value)}
                   />
-                  <div className="text-xs text-[#626262] mt-1">Individually or Matched (USD)</div>
-                </div>
-                <div>
-                  <label className="block text-base font-normal mb-2 text-white">List Price</label>
-                  <input
-                    type="text"
-                    className="w-[60%] py-3 px-0 bg-transparent border-b border-[#626262] text-white text-sm placeholder-[#626262] focus:outline-none focus:border-white"
-                    placeholder="Add price"
-                    value={formData.listPriceETH}
-                    onChange={(e) => handleInputChange('listPriceETH', e.target.value)}
-                  />
-                  <div className="text-xs text-[#626262] mt-1">ETH</div>
-                </div>
-              </div>
-
-              {/* Royalty Fee and Scarcity Row */}
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-base font-normal mb-2 text-white">Royalty Fee</label>
-                  <input
-                    type="text"
-                    className="w-[60%] py-3 px-0 bg-transparent border-b border-[#626262] text-white text-sm placeholder-[#626262] focus:outline-none focus:border-white"
-                    placeholder="Add fee %"
-                    value={formData.royaltyFee}
-                    onChange={(e) => handleInputChange('royaltyFee', e.target.value)}
-                  />
-                  <div className="text-xs text-[#626262] mt-1">What % of secondary sales royalties do you want?</div>
                 </div>
                 <div>
                   <label className="block text-base font-normal mb-2 text-white">Scarcity</label>
                   <input
                     type="text"
                     className="w-[60%] py-3 px-0 bg-transparent border-b border-[#626262] text-white text-sm placeholder-[#626262] focus:outline-none focus:border-white"
-                    placeholder="Type here"
+                    placeholder="Enter scarcity"
                     value={formData.scarcity}
                     onChange={(e) => handleInputChange('scarcity', e.target.value)}
                   />
-                  <div className="text-xs text-[#626262] mt-1">Maximum limit of minted / sales for this song/ art piece...</div>
                 </div>
+              </div>
+
+              {/* Utility */}
+              <div>
+                <label className="block text-base font-normal mb-2 text-white">Utility</label>
+                <input
+                  type="text"
+                  className="w-[60%] py-3 px-0 bg-transparent border-b border-[#626262] text-white text-sm placeholder-[#626262] focus:outline-none focus:border-white"
+                  placeholder="Enter utility"
+                  value={formData.utility}
+                  onChange={(e) => handleInputChange('utility', e.target.value)}
+                />
               </div>
             </div>
           </div>
@@ -258,19 +386,20 @@ const CreatePostSingle = () => {
       </div>
 
       {/* Fixed Bottom Buttons */}
-      <div className="sticky bottom-0 left-0 right-0 flex justify-end  border-t border-[#626262] py-2 px-6 z-10">
-        <div className="flex gap-4 w-[40%] justify-end items-end">
+      <div className="sticky bottom-0 left-0 right-0 flex justify-end border-t border-[#626262] py-4 px-6 bg-[#121214] z-10">
+        <div className="flex gap-4">
           <button
             onClick={handleCancel}
-            className="flex-1 py-3 px-4 bg-transparent border border-[#626262] text-white text-sm font-medium cursor-pointer hover:bg-[#1e1e1e]"
+            className="py-3 px-6 bg-transparent border border-[#626262] text-white text-sm font-medium rounded-lg cursor-pointer hover:bg-[#1e1e1e]"
           >
             CANCEL
           </button>
           <button
             onClick={handleSubmit}
-            className="flex-1 py-3 px-4 bg-white border border-white text-black text-sm font-medium cursor-pointer hover:bg-gray-200"
+            className="py-3 px-6 bg-white border border-white text-black text-sm font-medium rounded-lg cursor-pointer hover:bg-gray-200"
+            disabled={isUploading}
           >
-            SEND FOR APPROVAL
+            {isUploading ? 'UPLOADING...' : 'SEND FOR APPROVAL'}
           </button>
         </div>
       </div>
